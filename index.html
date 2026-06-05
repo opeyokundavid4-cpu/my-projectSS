@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ASL MVP Translation System</title>
+    <style>
+        body { font-family: Arial, sans-serif; display: flex; flex-direction: column; align-items: center; background-color: #f0f2f5; margin: 0; padding: 20px; }
+        h1 { color: #1a73e8; }
+        .container { display: flex; gap: 20px; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .video-box { position: relative; }
+        #webcam { border-radius: 8px; background: #000; }
+        .result-box { display: flex; flex-direction: column; justify-content: center; min-width: 200px; text-align: center; }
+        .label { font-size: 1.2rem; color: #5f6368; }
+        .prediction { font-size: 4rem; font-weight: bold; color: #1a73e8; margin: 10px 0; }
+        .confidence { font-size: 1rem; color: #80868b; }
+        .history { margin-top: 20px; width: 100%; max-width: 800px; }
+        .history-text { font-size: 1.5rem; background: white; padding: 15px; border-radius: 8px; min-height: 50px; border: 1px solid #ddd; }
+        .controls { margin-top: 10px; }
+        button { padding: 10px 20px; font-size: 1rem; cursor: pointer; background: #1a73e8; color: white; border: none; border-radius: 4px; }
+        button:hover { background: #1557b0; }
+        .status { margin-top: 10px; font-size: 0.9rem; color: #d93025; }
+    </style>
+</head>
+<body>
+    <h1>ASL MVP Translation System</h1>
+    <div class="container">
+        <div class="video-box">
+            <video id="webcam" width="400" height="300" autoplay playsinline></video>
+            <canvas id="canvas" width="400" height="300" style="display:none;"></canvas>
+        </div>
+        <div class="result-box">
+            <div class="label">Detected Sign</div>
+            <div id="prediction" class="prediction">-</div>
+            <div id="confidence" class="confidence">Confidence: 0%</div>
+            <div class="controls">
+                <button id="add-btn">Add to Sentence</button>
+                <button id="clear-btn">Clear</button>
+            </div>
+        </div>
+    </div>
+    <div class="history">
+        <h3>Translated Text</h3>
+        <div id="sentence" class="history-text"></div>
+    </div>
+    <div id="status" class="status"></div>
+
+    <script>
+        const video = document.getElementById('webcam');
+        const canvas = document.getElementById('canvas');
+        const predictionEl = document.getElementById('prediction');
+        const confidenceEl = document.getElementById('confidence');
+        const sentenceEl = document.getElementById('sentence');
+        const statusEl = document.getElementById('status');
+        let sentence = "";
+
+        async function setupCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                video.srcObject = stream;
+            } catch (err) {
+                statusEl.innerText = "Webcam access denied or not available. Please ensure camera is connected.";
+                console.error(err);
+            }
+        }
+
+        async function predict() {
+            const context = canvas.getContext('2d');
+            context.drawImage(video, 0, 0, 400, 300);
+            const imageData = canvas.toDataURL('image/jpeg');
+
+            try {
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: imageData })
+                });
+                const result = await response.json();
+                if (result.class) {
+                    predictionEl.innerText = result.class;
+                    confidenceEl.innerText = `Confidence: ${(result.confidence * 100).toFixed(1)}%`;
+                }
+            } catch (err) {
+                console.error("Prediction error:", err);
+            }
+        }
+
+        document.getElementById('add-btn').onclick = () => {
+            const current = predictionEl.innerText;
+            if (current !== "-") {
+                sentence += current;
+                sentenceEl.innerText = sentence;
+            }
+        };
+
+        document.getElementById('clear-btn').onclick = () => {
+            sentence = "";
+            sentenceEl.innerText = "";
+        };
+
+        setupCamera();
+        setInterval(predict, 1000); // Predict every second
+    </script>
+</body>
+</html>
